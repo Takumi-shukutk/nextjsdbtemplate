@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -13,13 +13,17 @@ export default function QuizForm() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [games, setGames] = useState([]);
+    const [actors, setActors] = useState([]);
 
     const router = useRouter();
 
     const [formData, setFormData] = useState({
-        question: "",
-        correct_answer: "",
-        category: "英語",
+        name: "",
+        game_id: "",
+           actor_id: "",
+           new_game: "",
+           new_voice_actor: "",
     });
 
     const handleChange = (e) => {
@@ -37,23 +41,52 @@ export default function QuizForm() {
         setSuccess("");
 
         try {
-            // DB カラム名に合わせてマッピングして挿入
+            // Character を作成 (小文字テーブル/カラム)
             const payload = {
-                question_text: formData.question,
-                answer: formData.correct_answer,
-                category: formData.category,
+                name: formData.name,
+                    game_id: selectedGameId,
+                    voice_actor_id: selectedVoiceActorId,
             };
 
             const { data, error: sbError } = await supabase
-                .from("question")
+                .from("character")
                 .insert([payload])
                 .select();
+                // ゲームの選択 or 新規作成（同名があれば既存を使う）
+                let selectedGameId = formData.game_id ? Number(formData.game_id) : null;
+                if (formData.new_game && formData.new_game.trim() !== "") {
+                    const title = formData.new_game.trim();
+                    const { data: existingGames, error: gErr } = await supabase.from("game").select("id").eq("title", title).limit(1);
+                    if (gErr) throw gErr;
+                    if (existingGames && existingGames.length > 0) {
+                        selectedGameId = existingGames[0].id;
+                    } else {
+                        const { data: insertedGame, error: insErr } = await supabase.from("game").insert({ title }).select("id").limit(1);
+                        if (insErr) throw insErr;
+                        selectedGameId = insertedGame[0].id;
+                    }
+                }
+
+                // 声優の選択 or 新規作成（同名があれば既存を使う）
+                let selectedVoiceActorId = formData.actor_id ? Number(formData.actor_id) : null;
+                if (formData.new_voice_actor && formData.new_voice_actor.trim() !== "") {
+                    const name = formData.new_voice_actor.trim();
+                    const { data: existingVAs, error: vErr } = await supabase.from("voice_actor").select("id").eq("name", name).limit(1);
+                    if (vErr) throw vErr;
+                    if (existingVAs && existingVAs.length > 0) {
+                        selectedVoiceActorId = existingVAs[0].id;
+                    } else {
+                        const { data: insertedVA, error: insVErr } = await supabase.from("voice_actor").insert({ name }).select("id").limit(1);
+                        if (insVErr) throw insVErr;
+                        selectedVoiceActorId = insertedVA[0].id;
+                    }
+                }
 
             if (sbError) {
                 setError(sbError.message);
             } else {
-                setSuccess("クイズを保存しました。");
-                setFormData({ question: "", correct_answer: "", category: "英語" });
+                setSuccess("キャラクターを保存しました。");
+                setFormData({ name: "", game_id: "", actor_id: "" });
             }
         } catch (err) {
             setError(String(err));
@@ -61,6 +94,22 @@ export default function QuizForm() {
             setLoading(false);
         }
     };
+
+    // 初期ロードで Games と Actors を取得
+    useEffect(() => {
+        async function loadLists() {
+            try {
+                const { data: gdata } = await supabase.from("game").select("id, title").order("title", { ascending: true });
+                const { data: adata } = await supabase.from("actor").select("id, name").order("name", { ascending: true });
+                setGames(gdata || []);
+                setActors(adata || []);
+            } catch (e) {
+                // ignore silently
+            }
+        }
+
+        loadLists();
+    }, []);
 
     return (
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-8">
@@ -122,69 +171,95 @@ export default function QuizForm() {
                     </div>
                 )}
 
-                {/* 問題文 */}
+                {/* キャラクター名 */}
                 <div>
-                    <label
-                        htmlFor="question"
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                    >
-                        問題文 <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                        id="question"
-                        name="question"
-                        rows={3}
-                        value={formData.question}
-                        onChange={handleChange}
-                        required
-                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                        placeholder="問題文を入力してください"
-                    />
-                </div>
-
-                {/* 正解 */}
-                <div>
-                    <label
-                        htmlFor="correct_answer"
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                    >
-                        正解 <span className="text-red-500">*</span>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        キャラクター名 <span className="text-red-500">*</span>
                     </label>
                     <input
+                        id="name"
+                        name="name"
                         type="text"
-                        id="correct_answer"
-                        name="correct_answer"
-                        value={formData.correct_answer}
+                        value={formData.name}
                         onChange={handleChange}
                         required
                         className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                        placeholder="正解を入力してください"
+                        placeholder="キャラクター名を入力してください"
                     />
                 </div>
 
-                {/* カテゴリ */}
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                    <div>
-                        <label
-                            htmlFor="category"
-                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                        >
-                            カテゴリ
-                        </label>
-                        <select
-                            id="category"
-                            name="category"
-                            value={formData.category}
-                            onChange={handleChange}
-                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                        >
-                            <option value="英語">英語</option>
-                            <option value="数学">数学</option>
-                            <option value="国語">国語</option>
-                            <option value="理科">理科</option>
-                            <option value="社会">社会</option>
-                        </select>
-                    </div>
+                {/* ゲーム選択 */}
+                <div>
+                    <label htmlFor="game_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        ゲーム
+                    </label>
+                    <select
+                        id="game_id"
+                        name="game_id"
+                        value={formData.game_id}
+                        onChange={handleChange}
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                    >
+                        <option value="">-- 未選択 --</option>
+                        {games.map((g) => (
+                            <option key={g.id} value={g.id}>
+                                {g.title}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* 新しいゲームを追加（既存名があれば再利用） */}
+                <div>
+                    <label htmlFor="new_game" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        新しいゲーム名（既存と同名なら既存を使用）
+                    </label>
+                    <input
+                        id="new_game"
+                        name="new_game"
+                        type="text"
+                        value={formData.new_game}
+                        onChange={handleChange}
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                        placeholder="例: My Game Title"
+                    />
+                </div>
+
+                {/* 声優選択 */}
+                <div>
+                    <label htmlFor="actor_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        声優
+                    </label>
+                    <select
+                        id="actor_id"
+                        name="actor_id"
+                        value={formData.actor_id}
+                        onChange={handleChange}
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                    >
+                        <option value="">-- 未選択 --</option>
+                        {actors.map((a) => (
+                            <option key={a.id} value={a.id}>
+                                {a.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* 新しい声優を追加（既存名があれば再利用） */}
+                <div>
+                    <label htmlFor="new_voice_actor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        新しい声優名（既存と同名なら既存を使用）
+                    </label>
+                    <input
+                        id="new_voice_actor"
+                        name="new_voice_actor"
+                        type="text"
+                        value={formData.new_voice_actor}
+                        onChange={handleChange}
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                        placeholder="例: Yamada Taro"
+                    />
                 </div>
 
                 {/* 送信ボタン */}

@@ -11,7 +11,6 @@ const supabase = createClient(
 );
 
 export default function QuizList() {
-    const [selectedCategory, setSelectedCategory] = useState("");
     const [quizzes, setQuizzes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -22,10 +21,11 @@ export default function QuizList() {
             setLoading(true);
             setError(null);
             try {
+                // キャラクターに関連するゲームと声優の名前をネストで取得（小文字テーブル名）
                 const { data, error: sbError } = await supabase
-                    .from("question")
-                    .select("id, question_text, answer, category")
-                    .order("id", { ascending: true });
+                    .from("character")
+                    .select("name, game:game_id(title), actor:actor_id(name)")
+                    .order("name", { ascending: true });
 
                 if (sbError) {
                     setError(sbError.message);
@@ -44,10 +44,7 @@ export default function QuizList() {
         loadQuizzes();
     }, []);
 
-    // カテゴリフィルタリング
-    const filteredQuizzes = selectedCategory
-        ? quizzes.filter((quiz) => quiz.category === selectedCategory)
-        : quizzes;
+    const filteredQuizzes = quizzes;
 
     const toggleQuiz = (quizId) => {
         setExpanded((prev) => ({ ...prev, [quizId]: !prev[quizId] }));
@@ -55,27 +52,8 @@ export default function QuizList() {
 
     return (
         <div>
-            {/* フィルター */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
-                <div className="flex flex-wrap gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            カテゴリ
-                        </label>
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-900 dark:text-white"
-                        >
-                            <option value="">すべて</option>
-                            <option value="英語">英語</option>
-                            <option value="数学">数学</option>
-                            <option value="国語">国語</option>
-                            <option value="理科">理科</option>
-                            <option value="社会">社会</option>
-                        </select>
-                    </div>
-                </div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">キャラクター一覧</h2>
             </div>
 
             {/* ローディング・エラー表示 */}
@@ -121,52 +99,28 @@ export default function QuizList() {
                 <div className="space-y-4">
                     {filteredQuizzes.map((quiz) => (
                         <div
-                            key={quiz.id}
+                            key={quiz.name}
                             className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"
                         >
                             <div className="p-6">
                                 <div className="mb-4">
                                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                                        {quiz.category}
+                                        {quiz?.game?.title || "(ゲーム未登録)"}
                                     </span>
                                 </div>
 
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 whitespace-pre-wrap">
-                                    {quiz.question_text}
+                                    {quiz.name}
                                 </h3>
 
-                                <button
-                                    onClick={() => toggleQuiz(quiz.id)}
-                                    className="w-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium py-3 px-4 rounded-lg transition-colors duration-200"
-                                >
-                                    回答を見る
-                                </button>
-
-                                {expanded[quiz.id] && (
-                                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mt-4">
-                                        <div className="flex items-center mb-2">
-                                            <svg
-                                                className="h-4 w-4 text-gray-600 dark:text-gray-400 mr-2"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                />
-                                            </svg>
-                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                                                正解
-                                            </span>
-                                        </div>
-                                        <p className="text-gray-900 dark:text-white font-medium">
-                                            {quiz.answer}
-                                        </p>
+                                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                    <div>
+                                        <strong>ゲーム:</strong> {quiz?.game?.title || "(未登録)"}
                                     </div>
-                                )}
+                                    <div>
+                                        <strong>声優:</strong> {quiz?.actor?.name || "(未登録)"}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     ))}

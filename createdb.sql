@@ -1,8 +1,18 @@
-CREATE TABLE question (
-    id BIGSERIAL PRIMARY KEY,
-    question_text TEXT NOT NULL,
-    answer VARCHAR(255) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE game (
+    id   INTEGER PRIMARY KEY,
+    title  VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE actor (
+    id   INTEGER PRIMARY KEY,
+    name  VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE character (
+    name  VARCHAR(255) NOT NULL,
+    game_id  INTEGER,
+    actor_id INTEGER,
+
+    FOREIGN KEY (game_id) REFERENCES game(id),
+    FOREIGN KEY (actor_id) REFERENCES actor(id)
 );

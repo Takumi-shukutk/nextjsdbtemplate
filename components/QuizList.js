@@ -98,31 +98,40 @@ export default function QuizList() {
             ) : (
                 <div className="space-y-4">
                     {filteredQuizzes.map((quiz) => (
-                        <div
+                        <Link
                             key={quiz.name}
-                            className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"
+                            href={`/character/${encodeURIComponent(quiz.name)}`}
+                            className="block"
                         >
-                            <div className="p-6">
-                                <div className="mb-4">
-                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                                        {quiz?.game?.title || "(ゲーム未登録)"}
-                                    </span>
-                                </div>
-
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 whitespace-pre-wrap">
-                                    {quiz.name}
-                                </h3>
-
-                                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <div>
-                                        <strong>ゲーム:</strong> {quiz?.game?.title || "(未登録)"}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer">
+                                <div className="p-6">
+                                    <div className="mb-4">
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                            {quiz?.game?.title || "(ゲーム未登録)"}
+                                        </span>
                                     </div>
-                                    <div>
-                                        <strong>声優:</strong> {quiz?.actor?.name || "(未登録)"}
+
+                                    <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-4 whitespace-pre-wrap hover:text-blue-800 dark:hover:text-blue-300">
+                                        {quiz.name}
+                                    </h3>
+
+                                    <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className="flex items-center mb-2">
+                                            <svg className="w-4 h-4 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                                            </svg>
+                                            <strong>ゲーム:</strong> {quiz?.game?.title || "(未登録)"}
+                                        </div>
+                                        <div className="flex items-center">
+                                            <svg className="w-4 h-4 mr-2 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                            </svg>
+                                            <strong>声優:</strong> {quiz?.actor?.name || "(未登録)"}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </Link>
                     ))}
                 </div>
             )}

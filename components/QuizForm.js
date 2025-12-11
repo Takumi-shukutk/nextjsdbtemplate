@@ -22,11 +22,12 @@ export default function QuizForm() {
     const [formData, setFormData] = useState({
         name: "",
         game_id: "",
-           actor_id: "",
-           new_game: "",
-           new_voice_actor: "",
-           game_mode: "existing",
-           actor_mode: "existing",
+        actor_id: "",
+        new_game: "",
+        new_voice_actor: "",
+        image_url: "",
+        game_mode: "existing",
+        actor_mode: "existing",
     });
 
     const handleChange = (e) => {
@@ -157,6 +158,9 @@ export default function QuizForm() {
                 game_id: selectedGameId,
                 actor_id: selectedVoiceActorId,
             };
+            if (formData.image_url && formData.image_url.trim() !== "") {
+                payload.image = formData.image_url.trim();
+            }
 
             const { data, error: sbError } = await supabase.from("character").insert([payload]).select();
 
@@ -164,7 +168,7 @@ export default function QuizForm() {
                 setError(formatError(sbError));
             } else {
                 setSuccess("キャラクターを保存しました。");
-                setFormData({ name: "", game_id: "", actor_id: "", new_game: "", new_voice_actor: "", game_mode: "existing", actor_mode: "existing" });
+                setFormData({ name: "", game_id: "", actor_id: "", new_game: "", new_voice_actor: "", image_url: "", game_mode: "existing", actor_mode: "existing" });
             }
         } catch (err) {
             setError(formatError(err));
@@ -403,6 +407,25 @@ export default function QuizForm() {
                             placeholder="例: Yamada Taro"
                         />
                     )}
+                </div>
+
+                {/* 画像URL */}
+                <div>
+                    <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        画像URL（任意）
+                    </label>
+                    <input
+                        id="image_url"
+                        name="image_url"
+                        type="url"
+                        value={formData.image_url}
+                        onChange={handleChange}
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                        placeholder="例: https://example.com/image.jpg"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        キャラクターの画像URLを入力してください。HTTPまたはHTTPSで始まるURLが必要です。
+                    </p>
                 </div>
 
                 {/* 送信ボタン */}

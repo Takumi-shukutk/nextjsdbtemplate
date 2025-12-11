@@ -15,6 +15,7 @@ export default function QuizForm() {
     const [success, setSuccess] = useState("");
     const [games, setGames] = useState([]);
     const [actors, setActors] = useState([]);
+    const [voiceTable, setVoiceTable] = useState("voice_actor"); // 実際のテーブル名を検出して設定
 
     const router = useRouter();
 
@@ -24,14 +25,41 @@ export default function QuizForm() {
            actor_id: "",
            new_game: "",
            new_voice_actor: "",
+           game_mode: "existing",
+           actor_mode: "existing",
     });
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
+        setFormData((prev) => {
+            const next = { ...prev, [name]: value };
+            if (name === "game_mode") {
+                if (value === "existing") {
+                    next.new_game = "";
+                } else {
+                    next.game_id = "";
+                }
+            }
+            if (name === "actor_mode") {
+                if (value === "existing") {
+                    next.new_voice_actor = "";
+                } else {
+                    next.actor_id = "";
+                }
+            }
+            return next;
+        });
+    };
+
+    const formatError = (err) => {
+        if (!err) return "";
+        if (typeof err === "string") return err;
+        if (err.message) return err.message;
+        try {
+            return JSON.stringify(err);
+        } catch (e) {
+            return String(err);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -41,55 +69,105 @@ export default function QuizForm() {
         setSuccess("");
 
         try {
-            // Character を作成 (小文字テーブル/カラム)
+            // ゲームID を決定
+            let selectedGameId = null;
+            if (formData.game_mode === "existing") {
+                selectedGameId = formData.game_id ? Number(formData.game_id) : null;
+            } else if (formData.game_mode === "new" && formData.new_game && formData.new_game.trim() !== "") {
+                const title = formData.new_game.trim();
+                const { data: existingGames, error: gErr } = await supabase.from("game").select("id").eq("title", title);
+                if (gErr) throw gErr;
+                if (existingGames && existingGames.length > 0) {
+                    selectedGameId = existingGames[0].id;
+                } else {
+                    // 最大IDを取得して次のIDを決定
+                    const { data: maxIdData, error: maxErr } = await supabase.from("game").select("id").order("id", { ascending: false }).limit(1);
+                    if (maxErr && maxErr.code !== "PGRST116") throw maxErr; // テーブル空の場合はエラーを無視
+                    const nextId = (maxIdData && maxIdData.length > 0) ? maxIdData[0].id + 1 : 1;
+                    
+                    const { data: insertedGame, error: insErr } = await supabase.from("game").insert([{ id: nextId, title }]).select("id");
+                    if (insErr) throw insErr;
+                    if (insertedGame && insertedGame.length > 0) {
+                        selectedGameId = insertedGame[0].id;
+                    } else {
+                        throw new Error("ゲーム挿入後、IDを取得できませんでした。");
+                    }
+                }
+            }
+
+            // 声優ID を決定
+            let selectedVoiceActorId = null;
+            if (formData.actor_mode === "existing") {
+                selectedVoiceActorId = formData.actor_id ? Number(formData.actor_id) : null;
+            } else if (formData.actor_mode === "new" && formData.new_voice_actor && formData.new_voice_actor.trim() !== "") {
+                const name = formData.new_voice_actor.trim();
+                // voiceTable を使って試行。失敗した場合は別名のテーブルでフォールバックする
+                const tryTables = ["actor", "voice_actor"];
+                let found = false;
+                const errors = [];
+                for (const tbl of tryTables) {
+                    try {
+                        const { data: existingVAs, error: vErr } = await supabase.from(tbl).select("id").eq("name", name).limit(1);
+                        if (vErr) {
+                            errors.push({ table: tbl, error: vErr });
+                            continue;
+                        }
+                        if (existingVAs && existingVAs.length > 0) {
+                            selectedVoiceActorId = existingVAs[0].id;
+                            setVoiceTable(tbl);
+                            found = true;
+                            break;
+                        }
+                        // 最大IDを取得して次のIDを決定
+                        const { data: maxIdData, error: maxErr } = await supabase.from(tbl).select("id").order("id", { ascending: false }).limit(1);
+                        if (maxErr && maxErr.code !== "PGRST116") {
+                            errors.push({ table: tbl, error: maxErr });
+                            continue;
+                        }
+                        const nextId = (maxIdData && maxIdData.length > 0) ? maxIdData[0].id + 1 : 1;
+                        
+                        const { data: insertedVA, error: insVErr } = await supabase.from(tbl).insert([{ id: nextId, name }]).select("id");
+                        if (insVErr) {
+                            errors.push({ table: tbl, error: insVErr });
+                            continue;
+                        }
+                        if (insertedVA && insertedVA.length > 0) {
+                            selectedVoiceActorId = insertedVA[0].id;
+                        } else {
+                            errors.push({ table: tbl, error: "声優挿入後、IDを取得できませんでした。" });
+                            continue;
+                        }
+                        setVoiceTable(tbl);
+                        found = true;
+                        break;
+                    } catch (e) {
+                        errors.push({ table: tbl, error: e });
+                        continue;
+                    }
+                }
+                if (!found) {
+                    const msgs = errors.map((x) => `${x.table}: ${formatError(x.error)}`).join(" | ");
+                    throw new Error(`声優テーブルが見つからないか、レコードを作成できませんでした。詳細: ${msgs}`);
+                }
+            }
+
+            // Character を作成
             const payload = {
                 name: formData.name,
-                    game_id: selectedGameId,
-                    voice_actor_id: selectedVoiceActorId,
+                game_id: selectedGameId,
+                actor_id: selectedVoiceActorId,
             };
 
-            const { data, error: sbError } = await supabase
-                .from("character")
-                .insert([payload])
-                .select();
-                // ゲームの選択 or 新規作成（同名があれば既存を使う）
-                let selectedGameId = formData.game_id ? Number(formData.game_id) : null;
-                if (formData.new_game && formData.new_game.trim() !== "") {
-                    const title = formData.new_game.trim();
-                    const { data: existingGames, error: gErr } = await supabase.from("game").select("id").eq("title", title).limit(1);
-                    if (gErr) throw gErr;
-                    if (existingGames && existingGames.length > 0) {
-                        selectedGameId = existingGames[0].id;
-                    } else {
-                        const { data: insertedGame, error: insErr } = await supabase.from("game").insert({ title }).select("id").limit(1);
-                        if (insErr) throw insErr;
-                        selectedGameId = insertedGame[0].id;
-                    }
-                }
-
-                // 声優の選択 or 新規作成（同名があれば既存を使う）
-                let selectedVoiceActorId = formData.actor_id ? Number(formData.actor_id) : null;
-                if (formData.new_voice_actor && formData.new_voice_actor.trim() !== "") {
-                    const name = formData.new_voice_actor.trim();
-                    const { data: existingVAs, error: vErr } = await supabase.from("voice_actor").select("id").eq("name", name).limit(1);
-                    if (vErr) throw vErr;
-                    if (existingVAs && existingVAs.length > 0) {
-                        selectedVoiceActorId = existingVAs[0].id;
-                    } else {
-                        const { data: insertedVA, error: insVErr } = await supabase.from("voice_actor").insert({ name }).select("id").limit(1);
-                        if (insVErr) throw insVErr;
-                        selectedVoiceActorId = insertedVA[0].id;
-                    }
-                }
+            const { data, error: sbError } = await supabase.from("character").insert([payload]).select();
 
             if (sbError) {
-                setError(sbError.message);
+                setError(formatError(sbError));
             } else {
                 setSuccess("キャラクターを保存しました。");
-                setFormData({ name: "", game_id: "", actor_id: "" });
+                setFormData({ name: "", game_id: "", actor_id: "", new_game: "", new_voice_actor: "", game_mode: "existing", actor_mode: "existing" });
             }
         } catch (err) {
-            setError(String(err));
+            setError(formatError(err));
         } finally {
             setLoading(false);
         }
@@ -100,9 +178,36 @@ export default function QuizForm() {
         async function loadLists() {
             try {
                 const { data: gdata } = await supabase.from("game").select("id, title").order("title", { ascending: true });
-                const { data: adata } = await supabase.from("actor").select("id, name").order("name", { ascending: true });
+
+                // まず `actor` テーブルを試す（多くのDBではこちら）。失敗したら `voice_actor` を試行してフォールバックする。
+                let table = "actor";
+                let adata = null;
+                try {
+                    const res = await supabase.from(table).select("id, name").order("name", { ascending: true }).limit(100);
+                    if (!res.error) {
+                        adata = res.data || [];
+                    } else {
+                        throw res.error;
+                    }
+                } catch (e) {
+                    // フォールバック: 'voice_actor' を試す
+                    table = "voice_actor";
+                    try {
+                        const res2 = await supabase.from(table).select("id, name").order("name", { ascending: true }).limit(100);
+                        if (!res2.error) {
+                            adata = res2.data || [];
+                        } else {
+                            throw res2.error;
+                        }
+                    } catch (e2) {
+                        // 両方失敗したら空配列で続行
+                        adata = [];
+                    }
+                }
+
                 setGames(gdata || []);
                 setActors(adata || []);
+                setVoiceTable(table);
             } catch (e) {
                 // ignore silently
             }
@@ -188,78 +293,116 @@ export default function QuizForm() {
                     />
                 </div>
 
-                {/* ゲーム選択 */}
+                {/* ゲーム: 既存選択か新規追加を切り替え */}
                 <div>
-                    <label htmlFor="game_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        ゲーム
-                    </label>
-                    <select
-                        id="game_id"
-                        name="game_id"
-                        value={formData.game_id}
-                        onChange={handleChange}
-                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                    >
-                        <option value="">-- 未選択 --</option>
-                        {games.map((g) => (
-                            <option key={g.id} value={g.id}>
-                                {g.title}
-                            </option>
-                        ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ゲーム</label>
+                    <div className="flex items-center space-x-4 mb-2">
+                        <label className="inline-flex items-center text-sm">
+                            <input
+                                type="radio"
+                                name="game_mode"
+                                value="existing"
+                                checked={formData.game_mode === "existing"}
+                                onChange={handleChange}
+                                className="mr-2"
+                            />
+                            既存から選択
+                        </label>
+                        <label className="inline-flex items-center text-sm">
+                            <input
+                                type="radio"
+                                name="game_mode"
+                                value="new"
+                                checked={formData.game_mode === "new"}
+                                onChange={handleChange}
+                                className="mr-2"
+                            />
+                            新しく追加
+                        </label>
+                    </div>
+
+                    {formData.game_mode === "existing" ? (
+                        <select
+                            id="game_id"
+                            name="game_id"
+                            value={formData.game_id}
+                            onChange={handleChange}
+                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                        >
+                            <option value="">-- 未選択 --</option>
+                            {games.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                    {g.title}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <input
+                            id="new_game"
+                            name="new_game"
+                            type="text"
+                            value={formData.new_game}
+                            onChange={handleChange}
+                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                            placeholder="例: My Game Title"
+                        />
+                    )}
                 </div>
 
-                {/* 新しいゲームを追加（既存名があれば再利用） */}
+                {/* 声優: 既存選択か新規追加を切り替え */}
                 <div>
-                    <label htmlFor="new_game" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        新しいゲーム名（既存と同名なら既存を使用）
-                    </label>
-                    <input
-                        id="new_game"
-                        name="new_game"
-                        type="text"
-                        value={formData.new_game}
-                        onChange={handleChange}
-                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                        placeholder="例: My Game Title"
-                    />
-                </div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">声優</label>
+                    <div className="flex items-center space-x-4 mb-2">
+                        <label className="inline-flex items-center text-sm">
+                            <input
+                                type="radio"
+                                name="actor_mode"
+                                value="existing"
+                                checked={formData.actor_mode === "existing"}
+                                onChange={handleChange}
+                                className="mr-2"
+                            />
+                            既存から選択
+                        </label>
+                        <label className="inline-flex items-center text-sm">
+                            <input
+                                type="radio"
+                                name="actor_mode"
+                                value="new"
+                                checked={formData.actor_mode === "new"}
+                                onChange={handleChange}
+                                className="mr-2"
+                            />
+                            新しく追加
+                        </label>
+                    </div>
 
-                {/* 声優選択 */}
-                <div>
-                    <label htmlFor="actor_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        声優
-                    </label>
-                    <select
-                        id="actor_id"
-                        name="actor_id"
-                        value={formData.actor_id}
-                        onChange={handleChange}
-                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                    >
-                        <option value="">-- 未選択 --</option>
-                        {actors.map((a) => (
-                            <option key={a.id} value={a.id}>
-                                {a.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* 新しい声優を追加（既存名があれば再利用） */}
-                <div>
-                    <label htmlFor="new_voice_actor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        新しい声優名（既存と同名なら既存を使用）
-                    </label>
-                    <input
-                        id="new_voice_actor"
-                        name="new_voice_actor"
-                        type="text"
-                        value={formData.new_voice_actor}
-                        onChange={handleChange}
-                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
-                        placeholder="例: Yamada Taro"
-                    />
+                    {formData.actor_mode === "existing" ? (
+                        <select
+                            id="actor_id"
+                            name="actor_id"
+                            value={formData.actor_id}
+                            onChange={handleChange}
+                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                        >
+                            <option value="">-- 未選択 --</option>
+                            {actors.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                    {a.name}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <input
+                            id="new_voice_actor"
+                            name="new_voice_actor"
+                            type="text"
+                            value={formData.new_voice_actor}
+                            onChange={handleChange}
+                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-black"
+                            placeholder="例: Yamada Taro"
+                        />
+                    )}
                 </div>
 
                 {/* 送信ボタン */}

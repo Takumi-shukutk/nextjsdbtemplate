@@ -13,7 +13,7 @@ export default function CreatePage() {
                                 href="/"
                                 className="text-2xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
                             >
-                                クイズアプリ
+                                アプリ
                             </Link>
                         </div>
                         <nav className="hidden md:flex space-x-8">
@@ -27,7 +27,7 @@ export default function CreatePage() {
                                 href="/create"
                                 className="text-blue-600 dark:text-blue-400 font-medium"
                             >
-                                クイズを追加
+                                キャラを追加
                             </Link>
                         </nav>
                     </div>
@@ -38,10 +38,10 @@ export default function CreatePage() {
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                        新規クイズ登録
+                        新規キャラクター登録
                     </h1>
                     <p className="text-gray-600 dark:text-gray-300">
-                        新しいクイズを作成して、学習コンテンツを追加しましょう。
+                        新しいキャラクターを作成して、データを追加しましょう。
                     </p>
                 </div>
 

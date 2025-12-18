@@ -355,7 +355,7 @@ export default function QuizForm() {
 
                 {/* 声優: 既存選択か新規追加を切り替え */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">声優</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">声優 - 姓名にスペースを入れてください</label>
                     <div className="flex items-center space-x-4 mb-2">
                         <label className="inline-flex items-center text-sm">
                             <input

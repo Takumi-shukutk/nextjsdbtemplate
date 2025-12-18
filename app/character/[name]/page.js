@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import Image from "next/image";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -35,6 +36,7 @@ export default function CharacterDetail() {
                     setCharacter(null);
                 } else if (data) {
                     setCharacter(data);
+                    console.log('Character data:', data); // デバッグ用
                 } else {
                     setError("キャラクターが見つかりません");
                     setCharacter(null);
@@ -113,18 +115,24 @@ export default function CharacterDetail() {
                 ) : character ? (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
                         {/* 画像表示 */}
-                        {character.image && (
-                            <div className="mb-8">
-                                <img
+                        <div className="mb-8">
+                            {character.image ? (
+                                <Image
                                     src={character.image}
                                     alt={character.name}
-                                    className="w-full h-auto rounded-lg object-cover max-h-96"
+                                    width={800}
+                                    height={600}
+                                    className="w-full h-auto rounded-lg object-cover"
+                                    unoptimized
                                     onError={(e) => {
+                                        console.error('Image load error for:', character.image);
                                         e.target.style.display = "none";
                                     }}
                                 />
-                            </div>
-                        )}
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400">画像が設定されていません</p>
+                            )}
+                        </div>
 
                         {/* キャラクター名 */}
                         <div className="mb-8">

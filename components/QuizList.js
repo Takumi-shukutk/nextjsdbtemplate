@@ -15,6 +15,9 @@ export default function QuizList() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [expanded, setExpanded] = useState({});
+    const [sortOrder, setSortOrder] = useState("name-asc"); // name-asc, name-desc
+    const [filterGame, setFilterGame] = useState(""); // 空文字列で全て
+    const [games, setGames] = useState([]);
 
     useEffect(() => {
         async function loadQuizzes() {
@@ -24,7 +27,7 @@ export default function QuizList() {
                 // キャラクターに関連するゲームと声優の名前をネストで取得（小文字テーブル名）
                 const { data, error: sbError } = await supabase
                     .from("character")
-                    .select("name, game:game_id(title), actor:actor_id(name)")
+                    .select("name, game:game_id(id, title), actor:actor_id(name)")
                     .order("name", { ascending: true });
 
                 if (sbError) {
@@ -32,6 +35,16 @@ export default function QuizList() {
                     setQuizzes([]);
                 } else if (data) {
                     setQuizzes(data);
+                }
+
+                // ゲーム一覧を取得
+                const { data: gameData, error: gameError } = await supabase
+                    .from("game")
+                    .select("id, title")
+                    .order("title", { ascending: true });
+
+                if (!gameError && gameData) {
+                    setGames(gameData);
                 }
             } catch (e) {
                 setError(String(e));
@@ -44,7 +57,19 @@ export default function QuizList() {
         loadQuizzes();
     }, []);
 
-    const filteredQuizzes = quizzes;
+    const filteredQuizzes = quizzes
+        .filter((quiz) => {
+            if (filterGame === "") return true;
+            return quiz.game?.id === parseInt(filterGame);
+        })
+        .sort((a, b) => {
+            if (sortOrder === "name-asc") {
+                return a.name.localeCompare(b.name, "ja");
+            } else if (sortOrder === "name-desc") {
+                return b.name.localeCompare(a.name, "ja");
+            }
+            return 0;
+        });
 
     const toggleQuiz = (quizId) => {
         setExpanded((prev) => ({ ...prev, [quizId]: !prev[quizId] }));
@@ -53,7 +78,43 @@ export default function QuizList() {
     return (
         <div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">キャラクター一覧</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">キャラクター一覧</h2>
+                
+                {/* フィルタとソート */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                    <div className="flex-1">
+                        <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            並び替え
+                        </label>
+                        <select
+                            id="sortOrder"
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value)}
+                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                        >
+                            <option value="name-asc">名前順 (昇順)</option>
+                            <option value="name-desc">名前順 (降順)</option>
+                        </select>
+                    </div>
+                    <div className="flex-1">
+                        <label htmlFor="filterGame" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ゲームで絞り込み
+                        </label>
+                        <select
+                            id="filterGame"
+                            value={filterGame}
+                            onChange={(e) => setFilterGame(e.target.value)}
+                            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                        >
+                            <option value="">全てのゲーム</option>
+                            {games.map((game) => (
+                                <option key={game.id} value={game.id}>
+                                    {game.title}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
             </div>
 
             {/* ローディング・エラー表示 */}

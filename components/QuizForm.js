@@ -466,7 +466,7 @@ export default function QuizForm() {
                                 作成中...
                             </div>
                         ) : (
-                            "クイズを作成"
+                            "キャラを登録"
                         )}
                     </button>
                 </div>
